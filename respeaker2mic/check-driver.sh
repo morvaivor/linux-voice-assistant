@@ -30,8 +30,24 @@ done
 
 overall=0
 
+# i2cdetect lives in /usr/sbin on some distros (outside a normal user's
+# PATH); probe an address on bus 1 and answer 0 when it responds
+# (the probed cell shows the address, or UU for a repeatable device).
+probe_addr() {
+  local addr="$1" tool
+  for tool in /usr/sbin/i2cdetect /usr/bin/i2cdetect; do
+    [ -x "${tool}" ] || continue
+    if [ -e /dev/i2c-1 ] && \
+       "${tool}" -y -r 1 "${addr}" "${addr}" 2>/dev/null \
+         | grep -qE "(^|[[:space:]])(${addr#0x}|UU)"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 check_2mic() {
-  local codec_addr codec_name
+  local codec_name
   codec_name="seeed2micvoicec"
   local present=0 healthy=1
 
@@ -39,12 +55,8 @@ check_2mic() {
   # address answers. We only flag a problem when a card is expected.
   if aplay -l 2>/dev/null | grep -q "${codec_name}"; then
     present=1
-  elif command -v i2cdetect >/dev/null 2>&1 && [ -e /dev/i2c-1 ]; then
-    if i2cdetect -y -r 1 0x1a 0x1a 2>/dev/null | grep -qE "(^|[[:space:]])1a"; then
-      present=1
-    elif i2cdetect -y -r 1 0x18 0x18 2>/dev/null | grep -qE "(^|[[:space:]])18"; then
-      present=1
-    fi
+  elif probe_addr 0x1a || probe_addr 0x18; then
+    present=1
   fi
 
   if [ "${present}" -eq 1 ]; then
@@ -65,10 +77,8 @@ check_4mic() {
   # never in `aplay -l`.
   if arecord -l 2>/dev/null | grep -q "${card_name}"; then
     present=1
-  elif [ -e /dev/i2c-1 ]; then
-    if i2cdetect -y -r 1 0x3b 0x3b 2>/dev/null | grep -qE "(^|[[:space:]])3b"; then
-      present=1
-    fi
+  elif probe_addr 0x3b; then
+    present=1
   fi
 
   if [ "${present}" -eq 1 ]; then
