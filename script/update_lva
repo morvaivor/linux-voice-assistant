@@ -156,8 +156,8 @@ check_audio_drivers() {
     # Inspects only (no module load/unload); a failing check never aborts
     # the update, it just prints guidance.
     local check="$PROJECT_DIR/respeaker2mic/check-driver.sh"
-    [ -x "$check" ] || return 0
-    if ! "$check" --quiet; then
+    [ -f "$check" ] || return 0
+    if ! bash "$check" --quiet; then
         echo ""
         echo "Warning: a ReSpeaker HAT driver is not healthy."
         echo "  ReSpeaker 4-Mic: the seeed-voicecard module must match the"
