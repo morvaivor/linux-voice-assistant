@@ -305,14 +305,15 @@ if command -v dtoverlay >/dev/null 2>&1; then
   sleep 2
 fi
 
-if aplay -l 2>/dev/null | grep -q "${card_id}"; then
+# The 4-Mic HAT is capture-only: verify with arecord, not aplay.
+if arecord -l 2>/dev/null | grep -q "${card_id}"; then
   echo
-  echo "Done. The HAT is available as card '${card_id}'."
+  echo "Done. The HAT is available as capture card '${card_id}'."
   echo "Verify with:"
   echo "  arecord -D plughw:CARD=${card_id} -f S16_LE -r 48000 -c 4 -d 5 /tmp/t4mic.wav && aplay /tmp/t4mic.wav"
 else
   echo
   echo "Done. Please reboot the system to activate the HAT."
   echo "After reboot, verify with:"
-  echo "  aplay -l | grep ${card_id}"
+  echo "  arecord -l | grep ${card_id}"
 fi

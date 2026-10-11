@@ -61,7 +61,9 @@ check_4mic() {
   local card_name="seeed4micvoicec"
   local present=0 healthy=1
 
-  if aplay -l 2>/dev/null | grep -q "${card_name}"; then
+  # The 4-Mic HAT is a capture-only card: it shows up in `arecord -l`,
+  # never in `aplay -l`.
+  if arecord -l 2>/dev/null | grep -q "${card_name}"; then
     present=1
   elif [ -e /dev/i2c-1 ]; then
     if i2cdetect -y -r 1 0x3b 0x3b 2>/dev/null | grep -qE "(^|[[:space:]])3b"; then
@@ -70,11 +72,7 @@ check_4mic() {
   fi
 
   if [ "${present}" -eq 1 ]; then
-    local mod_loaded=0
-    if lsmod 2>/dev/null | grep -q "^snd_soc_seeed_voicecard\|^snd-soc-seeed-voicecard"; then
-      mod_loaded=1
-    fi
-    if ! aplay -l 2>/dev/null | grep -q "${card_name}"; then
+    if ! arecord -l 2>/dev/null | grep -q "${card_name}"; then
       healthy=0
     fi
   fi

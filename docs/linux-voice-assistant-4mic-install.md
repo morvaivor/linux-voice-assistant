@@ -143,10 +143,11 @@ What it does:
 7. Tries to bring the card up live (module load + `dtoverlay`); otherwise it
    asks for one reboot.
 
-The ALSA card ID is **`seeed4micvoicec`**:
+The ALSA card ID is **`seeed4micvoicec`**. The card is **capture-only**
+(mics): it appears in `arecord -l`, never in `aplay -l`:
 
 ```bash
-aplay -l | grep seeed4micvoicec
+arecord -l | grep seeed4micvoicec
 arecord -D plughw:CARD=seeed4micvoicec -f S16_LE -r 48000 -c 4 -d 5 /tmp/t4mic.wav
 aplay /tmp/t4mic.wav
 ```
@@ -195,7 +196,7 @@ guidance (without failing the update) if an attached HAT is unhealthy.
 | Build fails with a wrong‑arch error or `mcount` flags | The kernel tree's `.config` was reconfigured for the wrong arch. Reconfigure with `make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig`, restore `Module.symvers`, `make prepare`, then rebuild. |
 | `ERROR: kernel tree release 'X' != requested 'Y'` | The prepared tree does not match the Pi's running kernel. Prepare a tree for the exact `uname -r`. |
 | `no AC108 codec at 0x3b on i2c bus 1` | HAT not seated, i2c bus off (reboot after first run adds `dtparam=i2c_arm=on`), or another device occupies `0x3b`. |
-| Module loads but `seeed4micvoicec` never appears | Vermagic mismatch — the `.ko` was built for a different kernel than `uname -r`. Rebuild for the exact running version (the server serves per‑version directories, so an old kernel after a distro upgrade simply needs one more build). |
+| Module loads but `seeed4micvoicec` never appears | Vermagic mismatch — the `.ko` was built for a different kernel than `uname -r`. Rebuild for the exact running version (the server serves per‑version directories, so an old kernel after a distro upgrade simply needs one more build). Check with `arecord -l` (capture-only card, `aplay -l` never lists it). |
 | Card appears as `plughw` but no audio | Check the 4‑mic mixer: `amixer -c seeed4micvoicec` (capture paths must be unmuted). The overlay provides a 24 MHz MCLK; if `aplay -l` shows the card but capture fails, verify the HAT is fully seated. |
 | `i2cdetect` shows `UU` at `0x3b` | A driver already claims the address (module loaded from a previous attempt). `modprobe -r snd-soc-ac108` then re‑probe, or simply proceed — the installer treats `UU` as "present". |
 | Audio broke after removing the 2‑Mic HAT | A 4‑mic HAT is still installed: the 2‑mic uninstall intentionally kept the shared settings. Remove the 4‑mic HAT too with `install-4mic-drivers.sh --uninstall`, then reboot. |
