@@ -59,8 +59,8 @@ EOF
 mode="install"
 while [ $# -gt 0 ]; do
   case "$1" in
-    "") ;;
-    --uninstall) mode="uninstall" ;;
+    "") shift ;;
+    --uninstall) mode="uninstall"; shift ;;
     --ko-server)
       [ $# -ge 2 ] || { echo "error: --ko-server requires a URL" >&2; exit 1; }
       ko_server="$2"; shift 2 ;;
