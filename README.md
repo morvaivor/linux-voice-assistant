@@ -94,6 +94,7 @@ When MQTT is enabled, *(See Section 5 of [the tutorial](docs/linux-voice-assista
 ### Hardware Integrations *(See Section 5 of [the tutorial](docs/linux-voice-assistant-install.md))*
 
 - **ReSpeaker 2-Mic Pi HAT v1 or v2** — GPIO button (mute toggle, short/long press) and SPI LEDs. Audio for both revisions runs on mainline kernel drivers via auto-detected device-tree overlays (no DKMS/kernel headers, any kernel >= 5.4)
+- **ReSpeaker 4-Mic Pi HAT** — AC108 codec (no mainline driver): out-of-tree `seeed-voicecard` driver cross-compiled per kernel version on the ko-server and installed from it. Coexists with the 2-Mic HAT. ([4-Mic install guide](docs/linux-voice-assistant-4mic-install.md))
 - **ReSpeaker XVF3800 4-Mic USB Array** — Hardware mute button, red mute LED sync, USB LED ring, and 4-mic input with AEC support. No vendor binaries required — LVA communicates directly via USB control transfers.
 
 ### LED Support
@@ -230,6 +231,7 @@ journalctl --user -u linux-voice-assistant.service -f
 | --- | --- |
 | [Full Install Guide](docs/linux-voice-assistant-install.md) | Complete setup including AEC, MQTT, LEDs, Sendspin, and XVF3800 |
 | [2-Mic HAT Quick Start](docs/linux-voice-assistant-2mic-install.md) | Raspberry Pi + ReSpeaker 2-Mic HAT focused guide |
+| [4-Mic HAT Guide](docs/linux-voice-assistant-4mic-install.md) | Raspberry Pi + ReSpeaker 4-Mic HAT: ko-server, per-kernel driver install, 2+4 coexistence |
 | [XVF3800 Setup](docs/linux-voice-assistant-xvf3800.md) | ReSpeaker XVF3800 4-Mic USB Array configuration |
 | [Desktop Client](docs/lva-desktop.md) | Running LVA on a Linux desktop with the tray client |
 | [PipeWire Install](docs/install_pipewire.md) | PipeWire setup notes |
@@ -286,6 +288,7 @@ linux-voice-assistant/
 │   ├── install_pipewire.md                        # PipeWire setup notes
 │   ├── install_pulseaudio.md                    # PulseAudio setup notes
 │   ├── linux-voice-assistant-2mic-install.md    # Raspberry Pi + ReSpeaker 2-Mic HAT focused guide
+│   ├── linux-voice-assistant-4mic-install.md    # Raspberry Pi + ReSpeaker 4-Mic HAT (ko-server) guide
 │   ├── linux-voice-assistant-install.md        # Complete setup including AEC, MQTT, LEDs, Sendspin, and XVF3800
 │   ├── linux-voice-assistant-xvf3800.md        # ReSpeaker XVF3800 4-Mic USB Array configuration
 │   ├── linux-voice-assistant-xvf3800-mute.md    # Hardware mute button and LED sync details

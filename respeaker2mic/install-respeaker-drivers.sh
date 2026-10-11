@@ -23,8 +23,11 @@
 # automatically.
 #
 # Note: the ReSpeaker 4-Mic/8-Mic HATs use the AC108 codec, which has no
-# mainline driver. They still need Seeed's DKMS installer and are NOT
-# handled by this script.
+# mainline driver, so they are handled by install-4mic-drivers.sh (which
+# fetches the per-kernel seeed-voicecard module from the ko-server) instead
+# of this script. The two installers coexist: this --uninstall detects a
+# coinstalled 4-Mic HAT and leaves its driver, overlay and shared i2c/i2s
+# settings in place.
 #
 # Uninstall: run with --uninstall to return the system to the state of a
 # fresh Raspberry Pi OS install (same packages). Every config change this
@@ -90,6 +93,19 @@ overlays_dir="${boot_dir}/overlays"
 do_uninstall() {
   removed=0
 
+  # Detect a concurrently installed ReSpeaker 4-Mic HAT (its overlay in
+  # config.txt, its .dtbo, or its ALSA config). When present, the shared
+  # i2c/i2s dtparams, the i2s-mmap overlay, the i2c-dev /etc/modules entry and
+  # the /etc/voicecard directory are owned by BOTH installers, so this
+  # uninstall must leave them in place: the 4-mic --uninstall removes its own
+  # copy. This prevents a 2-mic removal from breaking a coinstalled 4-mic HAT.
+  fourmic=0
+  if grep -qs "^dtoverlay=seeed-4mic-voicecard" "${config}" \
+     || [ -f "${overlays_dir}/seeed-4mic-voicecard.dtbo" ] \
+     || [ -f /etc/voicecard/asound_4mic.conf ]; then
+    fourmic=1
+  fi
+
   # legacy DKMS driver from the old Seeed installer (same cleanup as install)
   if command -v dkms >/dev/null 2>&1 && dkms status 2>/dev/null | grep -q "^seeed-voicecard/"; then
     echo "Removing legacy seeed-voicecard DKMS module..."
@@ -105,8 +121,15 @@ do_uninstall() {
     removed=1
   fi
   rm -f /usr/bin/seeed-voicecard
-  # i2c-dev: added by this installer; snd-soc-ac108: legacy DKMS leftover
-  sed -i -e '/^i2c-dev$/d' -e '/^snd-soc-ac108$/d' /etc/modules 2>/dev/null || true
+  # i2c-dev: added by this installer (and the 4-mic installer); snd-soc-ac108:
+  # the 4-mic codec (or a legacy DKMS leftover). When a 4-mic HAT is
+  # coinstalled, keep both entries: they belong to it, and its --uninstall
+  # removes them.
+  if [ "${fourmic}" -eq 1 ]; then
+    :
+  else
+    sed -i -e '/^i2c-dev$/d' -e '/^snd-soc-ac108$/d' /etc/modules 2>/dev/null || true
+  fi
 
   # config.txt: revert to the stock state. Stock Raspberry Pi OS ships the
   # three interface dtparams COMMENTED OUT, so removing the uncommented lines
@@ -114,14 +137,24 @@ do_uninstall() {
   # End anchor omitted from the seeed patterns so entries with extra
   # parameters are caught too.
   if [ -f "${config}" ]; then
+    # The 2-mic overlay lines are 2-mic-owned: always remove them.
     sed -i \
-      -e '/^dtparam=i2c_arm=on$/d' \
-      -e '/^dtparam=i2s=on$/d' \
-      -e '/^dtparam=spi=on$/d' \
       -e '/^dtoverlay=seeed-2mic-voicecard/d' \
       -e '/^dtoverlay=seeed-2mic-v2-voicecard/d' \
-      -e '/^dtoverlay=i2s-mmap/d' \
       "${config}"
+    # i2c_arm=on and i2s=on are also required by the coinstalled 4-mic HAT
+    # (its overlay targets &i2s / &i2c1), and i2s-mmap is shared with its LVA
+    # audio path: revert them to the stock (commented) state only when no
+    # 4-mic HAT remains. spi=on is never used by the 4-mic HAT, so it is
+    # always reverted.
+    if [ "${fourmic}" -eq 0 ]; then
+      sed -i \
+        -e '/^dtparam=i2c_arm=on$/d' \
+        -e '/^dtparam=i2s=on$/d' \
+        -e '/^dtoverlay=i2s-mmap/d' \
+        "${config}"
+    fi
+    sed -i '/^dtparam=spi=on$/d' "${config}"
   fi
 
   # compiled overlays from the boot partition
@@ -136,24 +169,40 @@ do_uninstall() {
     fi
   done
 
-  # remove the overlays from the live device tree (best effort); any residual
-  # runtime state (loaded modules) clears on reboot
+  # remove the 2-mic overlays from the live device tree (best effort); any
+  # residual runtime state (loaded modules) clears on reboot. i2s-mmap is only
+  # dropped when no coinstalled 4-mic HAT still needs it.
   if command -v dtoverlay >/dev/null 2>&1; then
     dtoverlay -r seeed-2mic-voicecard 2>/dev/null || true
     dtoverlay -r seeed-2mic-v2-voicecard 2>/dev/null || true
-    dtoverlay -r i2s-mmap 2>/dev/null || true
+    if [ "${fourmic}" -eq 0 ]; then
+      dtoverlay -r i2s-mmap 2>/dev/null || true
+    fi
   fi
 
   # ALSA configuration
   if [ -L /etc/asound.conf ] && \
      [ "$(readlink /etc/asound.conf)" = "/etc/voicecard/asound_2mic.conf" ]; then
-    rm -f /etc/asound.conf
-    echo "Removed /etc/asound.conf symlink."
+    if [ "${fourmic}" -eq 1 ]; then
+      # A 4-mic HAT is still installed: hand the default-card symlink over to
+      # its config instead of dropping it.
+      ln -sfn /etc/voicecard/asound_4mic.conf /etc/asound.conf
+      echo "Re-pointed /etc/asound.conf at the 4-mic config (HAT still installed)."
+    else
+      rm -f /etc/asound.conf
+      echo "Removed /etc/asound.conf symlink."
+    fi
     removed=1
   fi
   if [ -d /etc/voicecard ]; then
-    rm -rf /etc/voicecard
-    echo "Removed /etc/voicecard."
+    if [ "${fourmic}" -eq 1 ]; then
+      # Keep the directory and the 4-mic config; remove only the 2-mic files.
+      rm -f /etc/voicecard/asound_2mic.conf /etc/voicecard/wm8960_asound.state
+      echo "Removed 2-mic ALSA files (4-mic config kept)."
+    else
+      rm -rf /etc/voicecard
+      echo "Removed /etc/voicecard."
+    fi
     removed=1
   fi
 
@@ -186,6 +235,13 @@ do_uninstall() {
     echo "Config files are back to their fresh-install state. The packages"
     echo "installed alongside the driver (alsa-utils, i2c-tools,"
     echo "device-tree-compiler) were left in place."
+    if [ "${fourmic}" -eq 1 ]; then
+      echo
+      echo "A ReSpeaker 4-Mic HAT is still installed: the shared i2c/i2s"
+      echo "settings and the 4-mic driver/overlay were left in place. To"
+      echo "remove it too, run respeaker2mic/install-4mic-drivers.sh --uninstall"
+      echo "after the reboot."
+    fi
   fi
 }
 

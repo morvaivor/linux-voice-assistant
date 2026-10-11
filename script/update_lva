@@ -138,6 +138,8 @@ rebuild_and_start() {
 
     systemctl --user start "$DAEMON_UNIT_ACTIVE" 2>/dev/null || true
 
+    check_audio_drivers
+
     echo ""
     echo "Done. Now at: $(git -C "$PROJECT_DIR" describe --tags --always 2>/dev/null || echo "$BRANCH")"
     echo "Check the log for warnings:"
@@ -146,6 +148,22 @@ rebuild_and_start() {
         echo ""
         echo "Note: $PARENT_DIR/${PROJECT_NAME}_save is a backup left by the old"
         echo "fresh-clone updater. Once this version works, it can be deleted."
+    fi
+}
+
+check_audio_drivers() {
+    # Non-blocking health check of the ReSpeaker 2-Mic / 4-Mic HAT drivers.
+    # Inspects only (no module load/unload); a failing check never aborts
+    # the update, it just prints guidance.
+    local check="$PROJECT_DIR/respeaker2mic/check-driver.sh"
+    [ -x "$check" ] || return 0
+    if ! "$check" --quiet; then
+        echo ""
+        echo "Warning: a ReSpeaker HAT driver is not healthy."
+        echo "  ReSpeaker 4-Mic: the seeed-voicecard module must match the"
+        echo "    running kernel — re-run respeaker2mic/install-4mic-drivers.sh"
+        echo "  ReSpeaker 2-Mic: re-run respeaker2mic/install-respeaker-drivers.sh"
+        echo "  Details: respeaker2mic/check-driver.sh"
     fi
 }
 
