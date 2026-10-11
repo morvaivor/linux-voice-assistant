@@ -65,7 +65,7 @@ check_2mic() {
     fi
   fi
 
-  echo "2mic present=${present} healthy=${healthy}"
+  p2="${present}"; h2="${healthy}"
   [ "${healthy}" -eq 1 ] || overall=1
 }
 
@@ -87,17 +87,14 @@ check_4mic() {
     fi
   fi
 
-  echo "4mic present=${present} healthy=${healthy}"
+  p4="${present}"; h4="${healthy}"
   [ "${healthy}" -eq 1 ] || overall=1
 }
 
-# Collect results into variables for JSON output.
-r2=$(check_2mic)
-r4=$(check_4mic)
-p2=$(echo "${r2}" | sed -n 's/.*present=\([01]\).*/\1/p')
-h2=$(echo "${r2}" | sed -n 's/.*healthy=\([01]\).*/\1/p')
-p4=$(echo "${r4}" | sed -n 's/.*present=\([01]\).*/\1/p')
-h4=$(echo "${r4}" | sed -n 's/.*healthy=\([01]\).*/\1/p')
+# Run both checks in the current shell so they can update `overall` and
+# set p2/h2/p4/h4 (a $(...) subshell would lose those side effects).
+check_2mic
+check_4mic
 
 if [ "${json}" -eq 1 ]; then
   cat <<EOF
