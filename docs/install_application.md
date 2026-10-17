@@ -145,89 +145,43 @@ For example, to optimize for low-performance hardware:
 script/setup --cxxflags="-O1 -g0" --makeflags="-j1"
 ```
 
-Create a systemd service for the application:
+Install the provided systemd **user** service for the application:
 
 ``` sh
-sudo systemctl edit --force --full linux-voice-assistant.service
+mkdir -p ~/.config/systemd/user
+cp service/linux-voice-assistant.service ~/.config/systemd/user/
+chmod +x script/run
 ```
 
-Paste the following content into the file:
-
-``` ini
-[Unit]
-Description=Linux-Voice-Assistant
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/linux-voice-assistant
-Environment=PATH=/home/pi/linux-voice-assistant/.venv/bin:/usr/bin:/bin
-# Environment=ENABLE_DEBUG="1"
-# Environment=LIST_DEVICES="1"
-# Environment=CLIENT_NAME="My Voice Assistant Speaker"
-Environment=PULSE_SERVER="/run/user/<replace_with_your_user_id>/pulse/native"
-Environment=XDG_RUNTIME_DIR="/run/user/<replace_with_your_user_id>"
-Environment=PULSE_COOKIE="/home/pi/linux-voice-assistant/tmp_pulse_cookie"
-Environment=PREFERENCES_FILE="/home/pi/linux-voice-assistant/preferences.json"
-# Environment=NETWORK_INTERFACE="eth0"
-# Environment=HOST="0.0.0.0"
-# Environment=PORT="6053"
-# Environment=AUDIO_INPUT_DEVICE="default"
-# Environment=AUDIO_OUTPUT_DEVICE="default"
-# Environment=MUSIC_OUTPUT_DEVICE="default"
-# Environment=MIC_VOLUME="1.0"
-# Environment=MIC_AUTO_GAIN="0"
-# Environment=MIC_NOISE_SUPPRESSION="0"
-# Environment=AUDIO_INPUT_CHANNELS=2
-# Environment=ENABLE_THINKING_SOUND="1"
-# Environment=WAKE_WORD_DIR="app/wakewords"
-# Environment=WAKE-MODEL="okay_nabu"
-# Environment=STOP_MODEL="stop"
-# Environment=TIMER_MAX_RING_SECONDS="900"
-# Environment=REFACTORY_SECONDS="2"
-# Environment=CONTINUE_CONVERSATION_DELAY="0.5"
-# Environment=WAKEUP_SOUND="sounds/wake_word_triggered.flac"
-# Environment=START_LISTENING_SOUND="sounds/start_listening_button.flac"
-# Environment=TIMER_FINISHED_SOUND="sounds/timer_finished.flac"
-# Environment=PROCESSING_SOUND="sounds/processing.wav"
-# Environment=LISTEN_DURING_WAKE_SOUND="0"
-# Environment=MUTE_SOUND="sounds/mute_switch_on.flac"
-# Environment=UNMUTE_SOUND="sounds/mute_switch_off.flac"
-# Environment=PERIPHERAL_HOST="0.0.0.0"
-# Environment=PERIPHERAL_PORT="6055"
-# Environment=PERIPHERAL_VOLUME_STEP="%(default)s"
-# Environment=DISABLE_PERIPHERAL_API="1"
-# Environment=ENABLE_OUTPUT_ONLY="1"
-ExecStart=/home/pi/linux-voice-assistant/docker-entrypoint.sh
-# ExecStart=/home/pi/linux-voice-assistant/docker-entrypoint.sh --additional-parameter-if-you-want
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-💡 **Note:** We are using the `docker-entrypoint.sh` script to start the application. This script is located in the root of the repository. But there is no docker used. Only the start script is used.
-
-💡 **Note:** Replace `pi` with your actual user that you want to run the voice assistant. You need to run Pipewire and LVA with the same user in order to provide access to the audio socket. You can also add the group audio to the user which LVA is running on. `sudo usermod -a -G audio pi`
-
-Reload the systemd daemon and start the service:
+Enable lingering so the user services start at boot even without a login session:
 
 ``` sh
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl enable linux-voice-assistant
-sudo systemctl start linux-voice-assistant
+sudo loginctl enable-linger $(whoami)
 ```
 
-💡 **Note:** If you want to change settings you can do this with editing the Environment in the service file.
+Make sure PipeWire and its PulseAudio bridge run as the same user (the application opens the microphone through the PulseAudio API):
+
+``` sh
+systemctl --user enable --now pipewire wireplumber pipewire-pulse
+```
+
+Reload and start the service:
+
+``` sh
+systemctl --user daemon-reload
+systemctl --user enable --now linux-voice-assistant
+```
+
+💡 **Note:** The unit in `service/linux-voice-assistant.service` points at `script/run`, which launches the application from the local virtualenv. No docker is used — only the start script.
+
+💡 **Note:** Why a *user* service? The application opens the microphone via the PulseAudio socket in the user's runtime directory (`/run/user/<uid>/pulse/native`). A system service in `/etc/systemd/system/` does not have a user session and cannot reliably reach that socket (the app then fails with "PulseAudio did not start"). Running LVA as a user service of the same user that runs PipeWire avoids all of that. You can also add the user to the audio group: `sudo usermod -a -G audio $(whoami)`.
+
+💡 **Note:** Settings on bare metal are configured in `linux_voice_assistant/config.json` (see `linux_voice_assistant/config.json.example`), not as `Environment` entries in the service file.
 
 If you want to check if the service is running you can use the following command:
 
 ``` sh
-sudo systemctl status linux-voice-assistant
+systemctl --user status linux-voice-assistant
 ```
 
 

@@ -222,6 +222,28 @@ DEFAULT_R, DEFAULT_G, DEFAULT_B = 24, 187, 242
 2. If not, re-run `sudo ./install.sh` from the seeed-voicecard repository and reboot.
 3. On Raspberry Pi 5 with kernel 6.6+, check the [seeed-voicecard GitHub issues](https://github.com/respeaker/seeed-voicecard/issues) for a compatible branch.
 
+### LVA fails to start with `no soundcard with id ...`
+
+The `soundcard` Python backend used by LVA talks to **PulseAudio**, not ALSA. The ALSA card name from `arecord -l` (`seeed4micvoicec`) is therefore not a valid `input_device`.
+
+1. List the PulseAudio input sources:
+
+   ``` sh
+   pactl list sources short
+   ```
+
+   The 4-mic HAT appears as `alsa_input.platform-soc_sound.multichannel-input` (4 channels, 48 kHz).
+
+2. Set `audio.input_device` in `linux_voice_assistant/config.json` to the **exact source id**:
+
+   ``` jsonc
+   "audio": {
+     "input_device": "alsa_input.platform-soc_sound.multichannel-input"
+   }
+   ```
+
+3. ⚠️ Do not use a short substring such as `"multichannel"` — matching is case-sensitive, and the source's display name is `Built-in Audio Multichannel` (capital M), so the lowercase substring does not match. The full id avoids this.
+
 ### LEDs do not light up
 
 1. Confirm `dtparam=spi=on` is in `/boot/firmware/config.txt` and the Pi has been rebooted.
